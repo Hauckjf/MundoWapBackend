@@ -14,7 +14,7 @@ services:
       - mysql-db:/var/lib/mysql
   app:
     image: fmgusmao/php8-nginx
-#    user: 1000:1000
+    user: "root"
     container_name: mundowap-test-cakephp-app
     ports:
       - "13001:80"
