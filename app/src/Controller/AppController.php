@@ -50,4 +50,15 @@ class AppController extends Controller
          */
         //$this->loadComponent('Csrf');
     }
+    
+    public function getCsrfToken()
+    {
+        $this->request->allowMethod(['get']);
+    
+        $token = $this->request->getAttribute('csrfToken');
+    
+        return $this->response
+            ->withType('application/json')
+            ->withStringBody(json_encode(['csrfToken' => $token]));
+    }
 }

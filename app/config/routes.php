@@ -80,7 +80,7 @@ return static function (RouteBuilder $routes) {
          $builder->resources('Visits');
          $builder->resources('Workdays');
          
-         $builder->get('/csrf-token', ['controller' => 'Addresses', 'action' => 'getCsrfToken']);
+         $builder->get('/csrf-token', ['controller' => 'App', 'action' => 'getCsrfToken']);
     });
      
 };

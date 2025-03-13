@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use Cake\Http\Client;
+use Cake\Datasource\Exception\RecordNotFoundException;
+use InvalidArgumentException;
 
 /**
  * Addresses Controller
@@ -37,24 +39,63 @@ class AddressesController extends AppController
      * @return \Cake\Http\Response|null|void Renders view
      * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
      */
-    public function view($id = null)
+    public function view($id)
     {
         try
         {
-            $address = $this->Addresses->get($id, [
-                'contain' => [],
-            ]);
+            if(isset($id))
+            {
+                
+                $address = $this->Addresses->get($id, [
+                    'contain' => [],
+                ]);
 
-            return $this->response->withType('application/json')
-            ->withStatus(201)
-            ->withStringBody(json_encode([
-                'success' => true,
-                'data' => $address
-            ]));
+                return $this->response->withType('application/json')
+                ->withStatus(201)
+                ->withStringBody(json_encode([
+                    'success' => true,
+                    'data' => $address
+                ]));
+            }
+            else
+            {
+                if(!isset($id))
+                {
+                    return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'O campo id é obrigatório.'
+                    ]));
+                }
+            }
         }
-        catch (Exception $e) 
+        catch (RecordNotFoundException $e) 
         {
-            throw new \BadRequestException($e->getMessage());
+            return $this->response->withType('application/json')
+                ->withStatus(404)
+                ->withStringBody(json_encode([
+                    'error' => true,
+                    'message' => 'Endereço não encontrado.'
+                ]));
+
+        } catch (InvalidArgumentException $e) 
+        {
+            return $this->response->withType('application/json')
+                ->withStatus(400)
+                ->withStringBody(json_encode([
+                    'error' => true,
+                    'message' => $e->getMessage()
+                ]));
+
+        } catch (\Exception $e) 
+        {
+            return $this->response->withType('application/json')
+                ->withStatus(500)
+                ->withStringBody(json_encode([
+                    'error' => true,
+                    'message' => 'Erro interno no servidor: ' . $e->getMessage()
+                ]));
         }
     }
 
@@ -65,35 +106,36 @@ class AddressesController extends AppController
      */
     public function add()
     {
-        if ($this->request->is('post')) {
+        if ($this->request->is('post')) 
+        {
             
-            $addressEntity = $this->Addresses->newEmptyEntity();
-            $data = $this->request->getData();
-
-            
-            if(!isset($data['postal_code']))
-            {
-                return $this->response->withType('application/json')
-                ->withStatus(400)
-                ->withStringBody(json_encode([
-                    'error' => true,
-                    'message' => 'O campo postal_code é obrigatório.'
-                ]));
-            }
-            else if($data['postal_code'] === '')
-            {
-                return $this->response->withType('application/json')
-                ->withStatus(400)
-                ->withStringBody(json_encode([
-                    'error' => true,
-                    'message' => 'O campo postal_code está vazio.'
-                ]));
-            }
-
-            $postal_code = $data['postal_code'];
-
             try
             {
+
+                $addressEntity = $this->Addresses->newEmptyEntity();
+                $data = $this->request->getData();
+    
+                if(!isset($data['postal_code']))
+                {
+                    return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'O campo postal_code é obrigatório.'
+                    ]));
+                }
+                else if($data['postal_code'] === '')
+                {
+                    return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'O campo postal_code está vazio.'
+                    ]));
+                }
+    
+                $postal_code = $data['postal_code'];
+
                 $http = new Client();
     
                 $responseRepublica = $http->get("https://republicavirtual.com.br/web_cep.php?cep=$postal_code&formato=json")->getJson();
@@ -157,9 +199,24 @@ class AddressesController extends AppController
                         ]));
                 }
             }
-            catch (Exception $e) 
+            catch (InvalidArgumentException $e) 
             {
-                throw new \BadRequestException($e->getMessage());
+                return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => $e->getMessage()
+                    ]));
+    
+            } 
+            catch (\Exception $e) 
+            {
+                return $this->response->withType('application/json')
+                    ->withStatus(500)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'Erro interno no servidor: ' . $e->getMessage()
+                    ]));
             }
 
         }
@@ -176,34 +233,33 @@ class AddressesController extends AppController
     {
         
         if ($this->request->is(['patch', 'put'])) {
-
-            $addressOld = $this->Addresses->get($id, [
-                'contain' => [],
-            ]);
-        
-            $data = $this->request->getData();
-        
-            if (!isset($data['postal_code'])) {
-                return $this->response->withType('application/json')
-                    ->withStatus(400)
-                    ->withStringBody(json_encode([
-                        'error' => true,
-                        'message' => 'O campo postal_code é obrigatório.'
-                    ]));
-            }
-        
-            if (empty($data['postal_code'])) {
-                return $this->response->withType('application/json')
-                    ->withStatus(400)
-                    ->withStringBody(json_encode([
-                        'error' => true,
-                        'message' => 'O campo postal_code está vazio.'
-                    ]));
-            }
-        
-            $postal_code = $data['postal_code'];
         
             try {
+
+                $addressOld = $this->Addresses->get($id, [
+                    'contain' => [],
+                ]);
+            
+                $data = $this->request->getData();
+            
+                if (!isset($data['postal_code'])) {
+                    return $this->response->withType('application/json')
+                        ->withStatus(400)
+                        ->withStringBody(json_encode([
+                            'error' => true,
+                            'message' => 'O campo postal_code é obrigatório.'
+                        ]));
+                }else if (empty($data['postal_code'])) {
+                    return $this->response->withType('application/json')
+                        ->withStatus(400)
+                        ->withStringBody(json_encode([
+                            'error' => true,
+                            'message' => 'O campo postal_code está vazio.'
+                        ]));
+                }
+            
+                $postal_code = $data['postal_code'];
+
                 $http = new Client();
         
                 $responseRepublica = $http->get("https://republicavirtual.com.br/web_cep.php?cep=$postal_code&formato=json")->getJson();
@@ -261,12 +317,31 @@ class AddressesController extends AppController
                             'data' => $address->getErrors()
                         ]));
                 }
-            } catch (\Exception $e) {
+            } catch (RecordNotFoundException $e) 
+            {
+                return $this->response->withType('application/json')
+                    ->withStatus(404)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'Endereço não encontrado.'
+                    ]));
+    
+            } catch (InvalidArgumentException $e) 
+            {
+                return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => $e->getMessage()
+                    ]));
+    
+            } catch (\Exception $e) 
+            {
                 return $this->response->withType('application/json')
                     ->withStatus(500)
                     ->withStringBody(json_encode([
                         'error' => true,
-                        'message' => $e->getMessage()
+                        'message' => 'Erro interno no servidor: ' . $e->getMessage()
                     ]));
             }
         }
@@ -282,25 +357,61 @@ class AddressesController extends AppController
      */
     public function delete($id = null)
     {
-        $this->request->allowMethod(['post', 'delete']);
-        $address = $this->Addresses->get($id);
-        if ($this->Addresses->delete($address)) {
-            $this->Flash->success(__('The address has been deleted.'));
-        } else {
-            $this->Flash->error(__('The address could not be deleted. Please, try again.'));
+        if ($this->request->is(['delete'])) 
+        {
+            try
+            {
+
+                $address = $this->Addresses->get($id);
+
+                if ($this->Addresses->delete($address)) {
+                    return $this->response->withType('application/json')
+                    ->withStatus(200)
+                    ->withStringBody(json_encode([
+                        'success' => true,
+                        'data' => 'Endereço removido.'
+                    ]));
+                } else {
+                    return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'Erro ao deletar o endereço.',
+                        'data' => $address->getErrors()
+                    ]));
+                }
+            
+            }
+            catch (RecordNotFoundException $e) 
+            {
+                return $this->response->withType('application/json')
+                    ->withStatus(404)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'Endereço não encontrado.'
+                    ]));
+    
+            }
+            catch (InvalidArgumentException $e) 
+            {
+                return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => $e->getMessage()
+                    ]));
+    
+            } 
+            catch (\Exception $e) 
+            {
+                return $this->response->withType('application/json')
+                    ->withStatus(500)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'Erro interno no servidor: ' . $e->getMessage()
+                    ]));
+            }
         }
-
-        return $this->redirect(['action' => 'index']);
     }
 
-    public function getCsrfToken()
-    {
-        $this->request->allowMethod(['get']);
-    
-        $token = $this->request->getAttribute('csrfToken');
-    
-        return $this->response
-            ->withType('application/json')
-            ->withStringBody(json_encode(['csrfToken' => $token]));
-    }
 }

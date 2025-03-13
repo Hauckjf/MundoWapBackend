@@ -75,14 +75,6 @@ class Application extends BaseApplication
     public function middleware(MiddlewareQueue $middlewareQueue): MiddlewareQueue
     {
 
-        $csrf = new CsrfProtectionMiddleware();
-
-        $csrf->skipCheckCallback(function ($request) {
-            if ($request->getParam('prefix') === 'Api') {
-                return true;
-            }
-        });
-
         $middlewareQueue
             // Catch any exceptions in the lower layers,
             // and make an error page/response
