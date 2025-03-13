@@ -106,7 +106,7 @@ class AddressesController extends AppController
      */
     public function add()
     {
-        if ($this->request->is('post')) 
+        if ($this->request->is(['post'])) 
         {
             
             try
@@ -124,7 +124,7 @@ class AddressesController extends AppController
                         'message' => 'O campo postal_code é obrigatório.'
                     ]));
                 }
-                else if($data['postal_code'] === '')
+                else if(empty($data['postal_code']))
                 {
                     return $this->response->withType('application/json')
                     ->withStatus(400)

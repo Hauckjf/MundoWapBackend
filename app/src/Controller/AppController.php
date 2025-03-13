@@ -51,6 +51,11 @@ class AppController extends Controller
         //$this->loadComponent('Csrf');
     }
     
+    public function getDuration($forms, $products)
+    {
+        return ($forms * 15) + ($products * 5);
+    }
+
     public function getCsrfToken()
     {
         $this->request->allowMethod(['get']);

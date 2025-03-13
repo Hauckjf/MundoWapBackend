@@ -76,10 +76,16 @@ return static function (RouteBuilder $routes) {
      $routes->scope('/api', function (RouteBuilder $builder) {
     
          $builder->setExtensions(['json']);
-         $builder->resources('Addresses');
-         $builder->resources('Visits');
-         $builder->resources('Workdays');
+/*       $builder->resources('Addresses');
+         $builder->resources('Workdays'); 
+         $builder->resources('Visits'); */
          
+         $builder->post('/visits', ['controller' => 'Visits', 'action' => 'add']); 
+         $builder->put('/visits', ['controller' => 'Visits', 'action' => 'edit']);
+         $builder->get('/visits/date', ['controller' => 'Visits', 'action' => 'viewByDate']); //ok
+         $builder->get('/workdays', ['controller' => 'Workdays', 'action' => 'index']); //ok
+         $builder->post('/workdays/close', ['controller' => 'Workdays', 'action' => 'close']); 
+
          $builder->get('/csrf-token', ['controller' => 'App', 'action' => 'getCsrfToken']);
     });
      

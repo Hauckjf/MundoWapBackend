@@ -10,7 +10,7 @@ namespace App\Controller;
  */
 class WorkdaysController extends AppController
 {
-    /**
+     /**
      * Index method
      *
      * @return \Cake\Http\Response|null|void Renders view
@@ -19,23 +19,79 @@ class WorkdaysController extends AppController
     {
         $workdays = $this->paginate($this->Workdays);
 
-        $this->set(compact('workdays'));
+        return $this->response->withType('application/json')
+        ->withStatus(201)
+        ->withStringBody(json_encode([
+            'success' => true,
+            'data' => $workdays
+        ]));
     }
 
     /**
      * View method
      *
-     * @param string|null $id Workday id.
+     * @param string|null $id Address id.
      * @return \Cake\Http\Response|null|void Renders view
      * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
      */
-    public function view($id = null)
+    public function view($id)
     {
-        $workday = $this->Workdays->get($id, [
-            'contain' => [],
-        ]);
+        try
+        {
+            if(isset($id))
+            {
+                
+                $workdays = $this->Workdays->get($id, [
+                    'contain' => [],
+                ]);
 
-        $this->set(compact('workday'));
+                return $this->response->withType('application/json')
+                ->withStatus(201)
+                ->withStringBody(json_encode([
+                    'success' => true,
+                    'data' => $workdays
+                ]));
+            }
+            else
+            {
+                if(!isset($id))
+                {
+                    return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'O campo id é obrigatório.'
+                    ]));
+                }
+            }
+        }
+        catch (RecordNotFoundException $e) 
+        {
+            return $this->response->withType('application/json')
+                ->withStatus(404)
+                ->withStringBody(json_encode([
+                    'error' => true,
+                    'message' => 'Dia útil não encontrado.'
+                ]));
+
+        } catch (InvalidArgumentException $e) 
+        {
+            return $this->response->withType('application/json')
+                ->withStatus(400)
+                ->withStringBody(json_encode([
+                    'error' => true,
+                    'message' => $e->getMessage()
+                ]));
+
+        } catch (\Exception $e) 
+        {
+            return $this->response->withType('application/json')
+                ->withStatus(500)
+                ->withStringBody(json_encode([
+                    'error' => true,
+                    'message' => 'Erro interno no servidor: ' . $e->getMessage()
+                ]));
+        }
     }
 
     /**
@@ -45,60 +101,189 @@ class WorkdaysController extends AppController
      */
     public function add()
     {
-        $workday = $this->Workdays->newEmptyEntity();
-        if ($this->request->is('post')) {
-            $workday = $this->Workdays->patchEntity($workday, $this->request->getData());
-            if ($this->Workdays->save($workday)) {
-                $this->Flash->success(__('The workday has been saved.'));
+        if ($this->request->is('post')) 
+        {
+            
+            try
+            {
 
-                return $this->redirect(['action' => 'index']);
+                $workdaysEntity = $this->Workdays->newEmptyEntity();
+                $data = $this->request->getData();
+
+                $entity = $this->Workdays->patchEntity($workdaysEntity, $data);
+
+                if ($this->Workdays->save($entity)) {
+                    return $this->response->withType('application/json')
+                        ->withStatus(201)
+                        ->withStringBody(json_encode([
+                            'success' => true,
+                            'data' => $data
+                        ]));
+                } else {
+                    return $this->response->withType('application/json')
+                        ->withStatus(400)
+                        ->withStringBody(json_encode([
+                            'error' => true,
+                            'message' => 'Erro ao salvar o dia útil.',
+                            'data' => $entity->getErrors()
+                        ]));
+                }
             }
-            $this->Flash->error(__('The workday could not be saved. Please, try again.'));
+            catch (InvalidArgumentException $e) 
+            {
+                return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => $e->getMessage()
+                    ]));
+    
+            } 
+            catch (\Exception $e) 
+            {
+                return $this->response->withType('application/json')
+                    ->withStatus(500)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'Erro interno no servidor: ' . $e->getMessage()
+                    ]));
+            }
+
         }
-        $this->set(compact('workday'));
     }
 
     /**
      * Edit method
      *
-     * @param string|null $id Workday id.
+     * @param string|null $id Address id.
      * @return \Cake\Http\Response|null|void Redirects on successful edit, renders view otherwise.
      * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
      */
     public function edit($id = null)
     {
-        $workday = $this->Workdays->get($id, [
-            'contain' => [],
-        ]);
-        if ($this->request->is(['patch', 'post', 'put'])) {
-            $workday = $this->Workdays->patchEntity($workday, $this->request->getData());
-            if ($this->Workdays->save($workday)) {
-                $this->Flash->success(__('The workday has been saved.'));
+        
+        if ($this->request->is(['patch', 'put'])) {
+        
+            try {
 
-                return $this->redirect(['action' => 'index']);
+                $addressOld = $this->Workdays->get($id, [
+                    'contain' => [],
+                ]);
+            
+                $data = $this->request->getData();
+            
+                $workdays = $this->Workdays->patchEntity($addressOld, $data);
+        
+                if ($this->Workdays->save($workdays)) {
+                    return $this->response->withType('application/json')
+                        ->withStatus(200)
+                        ->withStringBody(json_encode([
+                            'success' => true,
+                            'data' => $workdays
+                        ]));
+                } else {
+                    return $this->response->withType('application/json')
+                        ->withStatus(400)
+                        ->withStringBody(json_encode([
+                            'error' => true,
+                            'message' => 'Erro ao atualizar o dia útil.',
+                            'data' => $workdays->getErrors()
+                        ]));
+                }
+            } catch (RecordNotFoundException $e) 
+            {
+                return $this->response->withType('application/json')
+                    ->withStatus(404)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'Dia útil não encontrado.'
+                    ]));
+    
+            } catch (InvalidArgumentException $e) 
+            {
+                return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => $e->getMessage()
+                    ]));
+    
+            } catch (\Exception $e) 
+            {
+                return $this->response->withType('application/json')
+                    ->withStatus(500)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'Erro interno no servidor: ' . $e->getMessage()
+                    ]));
             }
-            $this->Flash->error(__('The workday could not be saved. Please, try again.'));
         }
-        $this->set(compact('workday'));
+        
     }
 
     /**
      * Delete method
      *
-     * @param string|null $id Workday id.
+     * @param string|null $id Address id.
      * @return \Cake\Http\Response|null|void Redirects to index.
      * @throws \Cake\Datasource\Exception\RecordNotFoundException When record not found.
      */
     public function delete($id = null)
     {
-        $this->request->allowMethod(['post', 'delete']);
-        $workday = $this->Workdays->get($id);
-        if ($this->Workdays->delete($workday)) {
-            $this->Flash->success(__('The workday has been deleted.'));
-        } else {
-            $this->Flash->error(__('The workday could not be deleted. Please, try again.'));
-        }
+        if ($this->request->is(['delete'])) 
+        {
+            try
+            {
 
-        return $this->redirect(['action' => 'index']);
+                $workdays = $this->Workdays->get($id);
+
+                if ($this->Workdays->delete($workdays)) {
+                    return $this->response->withType('application/json')
+                    ->withStatus(200)
+                    ->withStringBody(json_encode([
+                        'success' => true,
+                        'data' => 'Dia útil removido.'
+                    ]));
+                } else {
+                    return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'Erro ao deletar o dia útil.',
+                        'data' => $workdays->getErrors()
+                    ]));
+                }
+            
+            }
+            catch (RecordNotFoundException $e) 
+            {
+                return $this->response->withType('application/json')
+                    ->withStatus(404)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'Dia útil não encontrado.'
+                    ]));
+    
+            }
+            catch (InvalidArgumentException $e) 
+            {
+                return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => $e->getMessage()
+                    ]));
+    
+            } 
+            catch (\Exception $e) 
+            {
+                return $this->response->withType('application/json')
+                    ->withStatus(500)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'Erro interno no servidor: ' . $e->getMessage()
+                    ]));
+            }
+        }
     }
 }
