@@ -74,11 +74,20 @@ class Application extends BaseApplication
      */
     public function middleware(MiddlewareQueue $middlewareQueue): MiddlewareQueue
     {
+
+        $csrf = new CsrfProtectionMiddleware();
+
+        $csrf->skipCheckCallback(function ($request) {
+            if ($request->getParam('prefix') === 'Api') {
+                return true;
+            }
+        });
+
         $middlewareQueue
             // Catch any exceptions in the lower layers,
             // and make an error page/response
             ->add(new ErrorHandlerMiddleware(Configure::read('Error')))
-
+    
             // Handle plugin/theme assets like CakePHP normally does.
             ->add(new AssetMiddleware([
                 'cacheTime' => Configure::read('Asset.cacheTime'),
@@ -100,8 +109,11 @@ class Application extends BaseApplication
             // Cross Site Request Forgery (CSRF) Protection Middleware
             // https://book.cakephp.org/4/en/security/csrf.html#cross-site-request-forgery-csrf-middleware
             ->add(new CsrfProtectionMiddleware([
-                'httponly' => true,
-            ]));
+                'httpOnly' => false,
+            ])
+        
+        
+        );
 
         return $middlewareQueue;
     }

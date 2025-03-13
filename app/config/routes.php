@@ -72,20 +72,15 @@ return static function (RouteBuilder $routes) {
          */
         $builder->fallbacks();
     });
-
-    /*
-     * If you need a different set of middleware or none at all,
-     * open new scope and define routes there.
-     *
-     * ```
-     * $routes->scope('/api', function (RouteBuilder $builder) {
-     *     // No $builder->applyMiddleware() here.
-     *
-     *     // Parse specified extensions from URLs
-     *     // $builder->setExtensions(['json', 'xml']);
-     *
-     *     // Connect API actions here.
-     * });
-     * ```
-     */
+   
+     $routes->scope('/api', function (RouteBuilder $builder) {
+    
+         $builder->setExtensions(['json']);
+         $builder->resources('Addresses');
+         $builder->resources('Visits');
+         $builder->resources('Workdays');
+         
+         $builder->get('/csrf-token', ['controller' => 'Addresses', 'action' => 'getCsrfToken']);
+    });
+     
 };

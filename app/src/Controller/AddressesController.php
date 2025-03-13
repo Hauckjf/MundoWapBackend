@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use Cake\Http\Client;
+
 /**
  * Addresses Controller
  *
@@ -10,6 +12,7 @@ namespace App\Controller;
  */
 class AddressesController extends AppController
 {
+
     /**
      * Index method
      *
@@ -19,7 +22,12 @@ class AddressesController extends AppController
     {
         $addresses = $this->paginate($this->Addresses);
 
-        $this->set(compact('addresses'));
+        return $this->response->withType('application/json')
+        ->withStatus(201)
+        ->withStringBody(json_encode([
+            'success' => true,
+            'data' => $addresses
+        ]));
     }
 
     /**
@@ -31,11 +39,23 @@ class AddressesController extends AppController
      */
     public function view($id = null)
     {
-        $address = $this->Addresses->get($id, [
-            'contain' => [],
-        ]);
+        try
+        {
+            $address = $this->Addresses->get($id, [
+                'contain' => [],
+            ]);
 
-        $this->set(compact('address'));
+            return $this->response->withType('application/json')
+            ->withStatus(201)
+            ->withStringBody(json_encode([
+                'success' => true,
+                'data' => $address
+            ]));
+        }
+        catch (Exception $e) 
+        {
+            throw new \BadRequestException($e->getMessage());
+        }
     }
 
     /**
@@ -45,17 +65,104 @@ class AddressesController extends AppController
      */
     public function add()
     {
-        $address = $this->Addresses->newEmptyEntity();
         if ($this->request->is('post')) {
-            $address = $this->Addresses->patchEntity($address, $this->request->getData());
-            if ($this->Addresses->save($address)) {
-                $this->Flash->success(__('The address has been saved.'));
+            
+            $addressEntity = $this->Addresses->newEmptyEntity();
+            $data = $this->request->getData();
 
-                return $this->redirect(['action' => 'index']);
+            
+            if(!isset($data['postal_code']))
+            {
+                return $this->response->withType('application/json')
+                ->withStatus(400)
+                ->withStringBody(json_encode([
+                    'error' => true,
+                    'message' => 'O campo postal_code é obrigatório.'
+                ]));
             }
-            $this->Flash->error(__('The address could not be saved. Please, try again.'));
+            else if($data['postal_code'] === '')
+            {
+                return $this->response->withType('application/json')
+                ->withStatus(400)
+                ->withStringBody(json_encode([
+                    'error' => true,
+                    'message' => 'O campo postal_code está vazio.'
+                ]));
+            }
+
+            $postal_code = $data['postal_code'];
+
+            try
+            {
+                $http = new Client();
+    
+                $responseRepublica = $http->get("https://republicavirtual.com.br/web_cep.php?cep=$postal_code&formato=json")->getJson();
+                
+                if (isset($responseRepublica['resultado']) && $responseRepublica['resultado'] == 1) 
+                {
+                    $data['state'] = $responseRepublica['uf'];
+                    $data['city'] = $responseRepublica['cidade'];
+
+                    if (empty($data['street'])) {
+                        $data['street'] = ($responseRepublica['tipo_logradouro'] . " " . $responseRepublica['logradouro']) ?? null;
+                    }
+
+                    if (empty($data['sublocality'])) {
+                        $data['sublocality'] = $responseRepublica['bairro'] ?? null;
+                    }
+    
+                }
+                else
+                {
+                    $http = new Client();
+                    
+                    $responseVia = $http->get("https://viacep.com.br/ws/{$postal_code}/json")->getJson();
+                    if (isset($responseVia['erro']) && !$responseVia['erro']) {
+                        $data['state'] = $data['state'] ?? $responseVia['estado'];
+                        $data['city'] = $data['city'] ?? $responseVia['localidade'];
+
+                        if (empty($data['street'])) {
+                            $data['street'] = $responseVia['logradouro'] ?? null;
+                        }
+
+                        if (empty($data['sublocality'])) {
+                            $data['sublocality'] = $responseVia['bairro'] ?? null;
+                        }
+                    } else {
+                        return $this->response->withType('application/json')
+                        ->withStatus(404)
+                        ->withStringBody(json_encode([
+                            'error' => true,
+                            'message' => 'CEP não encontrado.'
+                        ]));
+                    }
+                }
+                
+                $entity = $this->Addresses->patchEntity($addressEntity, $data);
+
+                if ($this->Addresses->save($entity)) {
+                    return $this->response->withType('application/json')
+                        ->withStatus(201)
+                        ->withStringBody(json_encode([
+                            'success' => true,
+                            'data' => $data
+                        ]));
+                } else {
+                    return $this->response->withType('application/json')
+                        ->withStatus(400)
+                        ->withStringBody(json_encode([
+                            'error' => true,
+                            'message' => 'Erro ao salvar o endereço.',
+                            'data' => $entity->getErrors()
+                        ]));
+                }
+            }
+            catch (Exception $e) 
+            {
+                throw new \BadRequestException($e->getMessage());
+            }
+
         }
-        $this->set(compact('address'));
     }
 
     /**
@@ -67,19 +174,103 @@ class AddressesController extends AppController
      */
     public function edit($id = null)
     {
-        $address = $this->Addresses->get($id, [
-            'contain' => [],
-        ]);
-        if ($this->request->is(['patch', 'post', 'put'])) {
-            $address = $this->Addresses->patchEntity($address, $this->request->getData());
-            if ($this->Addresses->save($address)) {
-                $this->Flash->success(__('The address has been saved.'));
+        
+        if ($this->request->is(['patch', 'put'])) {
 
-                return $this->redirect(['action' => 'index']);
+            $addressOld = $this->Addresses->get($id, [
+                'contain' => [],
+            ]);
+        
+            $data = $this->request->getData();
+        
+            if (!isset($data['postal_code'])) {
+                return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'O campo postal_code é obrigatório.'
+                    ]));
             }
-            $this->Flash->error(__('The address could not be saved. Please, try again.'));
+        
+            if (empty($data['postal_code'])) {
+                return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'O campo postal_code está vazio.'
+                    ]));
+            }
+        
+            $postal_code = $data['postal_code'];
+        
+            try {
+                $http = new Client();
+        
+                $responseRepublica = $http->get("https://republicavirtual.com.br/web_cep.php?cep=$postal_code&formato=json")->getJson();
+        
+                if (isset($responseRepublica['resultado']) && $responseRepublica['resultado'] == 1) {
+                    $data['state'] = $addressOld->state ?? $responseRepublica['uf'];
+                    $data['city'] = $addressOld->city ?? $responseRepublica['cidade'];
+        
+                    if (empty($data['street'])) {
+                        $data['street'] = ($responseRepublica['tipo_logradouro'] . " " . $responseRepublica['logradouro']) ?? null;
+                    }
+        
+                    if (empty($data['sublocality'])) {
+                        $data['sublocality'] = $responseRepublica['bairro'] ?? null;
+                    }
+                } else {
+                    $responseVia = $http->get("https://viacep.com.br/ws/{$postal_code}/json")->getJson();
+        
+                    if (!isset($responseVia['erro']) || !$responseVia['erro']) {
+                        $data['state'] = $addressOld->state ?? $responseVia['uf'];
+                        $data['city'] = $addressOld->city ?? $responseVia['localidade'];
+        
+                        if (empty($data['street'])) {
+                            $data['street'] = $responseVia['logradouro'] ?? null;
+                        }
+        
+                        if (empty($data['sublocality'])) {
+                            $data['sublocality'] = $responseVia['bairro'] ?? null;
+                        }
+                    } else {
+                        return $this->response->withType('application/json')
+                            ->withStatus(404)
+                            ->withStringBody(json_encode([
+                                'error' => true,
+                                'message' => 'CEP não encontrado.'
+                            ]));
+                    }
+                }
+        
+                $address = $this->Addresses->patchEntity($addressOld, $data);
+        
+                if ($this->Addresses->save($address)) {
+                    return $this->response->withType('application/json')
+                        ->withStatus(200)
+                        ->withStringBody(json_encode([
+                            'success' => true,
+                            'data' => $address
+                        ]));
+                } else {
+                    return $this->response->withType('application/json')
+                        ->withStatus(400)
+                        ->withStringBody(json_encode([
+                            'error' => true,
+                            'message' => 'Erro ao atualizar o endereço.',
+                            'data' => $address->getErrors()
+                        ]));
+                }
+            } catch (\Exception $e) {
+                return $this->response->withType('application/json')
+                    ->withStatus(500)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => $e->getMessage()
+                    ]));
+            }
         }
-        $this->set(compact('address'));
+        
     }
 
     /**
@@ -100,5 +291,16 @@ class AddressesController extends AppController
         }
 
         return $this->redirect(['action' => 'index']);
+    }
+
+    public function getCsrfToken()
+    {
+        $this->request->allowMethod(['get']);
+    
+        $token = $this->request->getAttribute('csrfToken');
+    
+        return $this->response
+            ->withType('application/json')
+            ->withStringBody(json_encode(['csrfToken' => $token]));
     }
 }

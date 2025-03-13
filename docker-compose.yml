@@ -14,10 +14,12 @@ services:
       - mysql-db:/var/lib/mysql
   app:
     image: fmgusmao/php8-nginx
-    user: "root"
     container_name: mundowap-test-cakephp-app
     ports:
       - "13001:80"
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     volumes:
       - ./app:/var/www/html
     extra_hosts:
