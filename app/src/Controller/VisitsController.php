@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Controller;
 
 use App\Controller\AddressesController;
+use App\Controller\WorkdaysController;
 use Cake\Http\ServerRequest;
 use Cake\Http\Response;
 
@@ -206,6 +207,66 @@ class VisitsController extends AppController
                         new Response()
                     );
                     
+                    $workdaysControllerGet = new WorkdaysController(
+                        (new ServerRequest())
+                        ->withParsedBody(['date' => $data['visits']['date']]),
+                        new Response()
+                    );
+
+                    $responseWorkdays = $workdaysControllerGet->viewByDate($data['visits']['date']);
+                    $responseWorkdays->getBody()->rewind();
+                    $responseWorkdaysData = json_decode($responseWorkdays->getBody()->getContents(), true);
+                    
+                    if(sizeof($responseWorkdaysData['data']) === 0)
+                    {
+                        $data['workdays']['date'] = $data['visits']['date'];
+                        $data['workdays']['visits'] = 1;
+                        $data['workdays']['completed'] = $data['visits']['completed'] ?? 0;
+                        $data['workdays']['duration'] = $data['visits']['duration'];
+
+                        $workdaysControllerPost = new WorkdaysController(
+                            (new ServerRequest())
+                            ->withMethod('POST')
+                            ->withParsedBody($data['workdays']),
+                            new Response()
+                        );
+                        
+                        $responseWorkdaysPost = $workdaysControllerPost->add();
+                    }
+                    else
+                    {
+                        $visitasCompletas =  $this->Visits->find()
+                        ->where(['date' => $data['visits']['date']])
+                        ->where(['completed' => 1])
+                        ->contain([])
+                        ->toArray();
+
+                        $visitas =  $this->Visits->find()
+                        ->where(['date' => $data['visits']['date']])
+                        ->contain([])
+                        ->toArray();
+
+                        $data['workdays']['id'] = $responseWorkdaysData['data'][0]['id'];
+                        $data['workdays']['date'] = $data['visits']['date'];
+                        $data['workdays']['visits'] = sizeof($visitas);
+                        $data['workdays']['completed'] = sizeof($visitasCompletas);
+                        $data['workdays']['duration'] = ($data['visits']['duration'] + $responseWorkdaysData['data'][0]['duration']);
+
+                        $workdaysControllerPut = new WorkdaysController(
+                            (new ServerRequest())
+                                ->withMethod('PUT')
+                                ->withParsedBody($data['workdays']),
+                            new Response()
+                        );
+                        
+                        $id = $data['workdays']['id'] ?? null;
+                        
+                        $responseWorkdaysPut = $workdaysControllerPut->edit($id);
+                        $responseWorkdaysPut->getBody()->rewind();
+                        
+                        $responseWorkdaysPutData = json_decode($responseWorkdaysPut->getBody()->getContents(), true);
+                    }
+
                     $responseAddresses = $addressesController->add();
                     $responseAddresses->getBody()->rewind();
                     $responseData = json_decode($responseAddresses->getBody()->getContents(), true);
