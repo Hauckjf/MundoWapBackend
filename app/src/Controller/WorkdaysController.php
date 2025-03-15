@@ -94,6 +94,62 @@ class WorkdaysController extends AppController
         }
     }
 
+    public function close()
+    {
+        try
+        {
+
+            $data = $this->request->getData();
+
+            if(isset($data['date']))
+            {
+                $workdays = $this->Workdays->find()
+                    ->where(['date' => $data['date']])
+                    ->contain([])
+                    ->toArray();
+
+                return $this->response->withType('application/json')
+                    ->withStatus(200)
+                    ->withStringBody(json_encode([
+                        'success' => true,
+                        'data' => $workdays
+                    ]));
+            }
+            else
+            {
+
+            }
+            
+        }
+        catch (RecordNotFoundException $e) 
+        {
+            return $this->response->withType('application/json')
+                ->withStatus(404)
+                ->withStringBody(json_encode([
+                    'error' => true,
+                    'message' => 'Dia útil não encontrado.'
+                ]));
+
+        } catch (InvalidArgumentException $e) 
+        {
+            return $this->response->withType('application/json')
+                ->withStatus(400)
+                ->withStringBody(json_encode([
+                    'error' => true,
+                    'message' => $e->getMessage()
+                ]));
+
+        } catch (\Exception $e) 
+        {
+            return $this->response->withType('application/json')
+                ->withStatus(500)
+                ->withStringBody(json_encode([
+                    'error' => true,
+                    'message' => 'Erro interno no servidor: ' . $e->getMessage()
+                ]));
+        }
+    }
+
     public function viewByDate()
     {
         try

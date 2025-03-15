@@ -40,6 +40,12 @@ class VisitsTable extends Table
         $this->setTable('visits');
         $this->setDisplayField('id');
         $this->setPrimaryKey('id');
+
+        $this->hasOne('Addresses', [
+            'foreignKey' => 'foreign_id',
+            'dependent' => true,
+        ]);
+
     }
 
     /**

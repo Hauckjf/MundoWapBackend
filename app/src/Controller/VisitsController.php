@@ -16,6 +16,8 @@ use Cake\Datasource\ConnectionManager;
  */
 class VisitsController extends AppController
 {
+
+
    /**
      * Index method
      *
@@ -120,7 +122,6 @@ class VisitsController extends AppController
             }
             else
             {
-              
                 return $this->response->withType('application/json')
                 ->withStatus(400)
                 ->withStringBody(json_encode([
@@ -176,14 +177,14 @@ class VisitsController extends AppController
                 $visitsEntity = $this->Visits->newEmptyEntity();
                 $data = $this->request->getData();
 
-                if(!isset($data['visits']['date']) || !isset($data['visits']['status']) || !isset($data['visits']['forms']) || !isset($data['visits']['products']) || !isset($data['address']))
+                if(!isset($data['visits']['date']) || !isset($data['visits']['forms']) || !isset($data['visits']['products']) || !isset($data['address']))
                 {
                     $connection->rollback();
                     return $this->response->withType('application/json')
                     ->withStatus(400)
                     ->withStringBody(json_encode([
                         'error' => true,
-                        'message' => 'Os campos "date", "status", "forms", "products" e "address" são obrigatórios.'
+                        'message' => 'Os campos "date", "forms", "products" e "address" são obrigatórios.'
                     ]));
                 }
                 elseif(empty($data['visits']['date']) || empty($data['visits']['forms']) || empty($data['visits']['products']) || empty($data['address']))
@@ -193,7 +194,7 @@ class VisitsController extends AppController
                     ->withStatus(400)
                     ->withStringBody(json_encode([
                         'error' => true,
-                        'message' => 'Os campos "date", "status", "forms", "products" e "address" não podem estar vazios.'
+                        'message' => 'Os campos "date", "forms", "products" e "address" não podem estar vazios.'
                     ]));
                 }
 
@@ -291,7 +292,6 @@ class VisitsController extends AppController
                         $id = $data['workdays']['id'] ?? null;
                         
                         $responseWorkdaysPut = $workdaysControllerPut->edit($id);
-                       
                     }
 
                     $responseAddresses = $addressesController->add();
@@ -371,25 +371,210 @@ class VisitsController extends AppController
         
         if ($this->request->is(['patch', 'put'])) {
         
+            $connection = ConnectionManager::get('default');
+
+            $connection->begin();
+
             try 
             {
 
+                if (!$id) {
+                    $connection->rollback();
+                    return $this->response->withType('application/json')
+                        ->withStatus(400)
+                        ->withStringBody(json_encode([
+                            'error' => true,
+                            'message' => 'ID é obrigatório.'
+                        ]));
+                }
+
                 $visitsOld = $this->Visits->get($id, [
-                    'contain' => [],
+                    'contain' => ['Addresses'],
                 ]);
             
                 $data = $this->request->getData();
-            
-                $visits = $this->Visits->patchEntity($visitsOld, $data);
+
+                if(isset($data['address']['postal_code']) && isset($visitsOld->toArray()['address']) && $data['address']['postal_code'] !== $visitsOld->toArray()['address']['postal_code'])
+                {
+                    $addressesController = new AddressesController(
+                        (new ServerRequest())->withMethod('DELETE'),
+                        new Response()
+                    );
+                    $addressesController->delete($visitsOld->toArray()['address']['id']);
         
+                    $data['address']['foreign_table'] = 'visits';
+                    $data['address']['foreign_id'] = $id;
+                    $addressesControllerPost = new AddressesController(
+                        (new ServerRequest())
+                            ->withMethod('POST')
+                            ->withParsedBody($data['address']),
+                        new Response()
+                    );
+                    
+                    $responseAddresses = $addressesControllerPost->add();
+                    $responseAddresses->getBody()->rewind();
+                    $responseBody = json_decode($responseAddresses->getBody()->getContents(), true);
+                    if (isset($responseBody['error']) && $responseBody['error']) {
+                        $connection->rollback();
+                        return $this->response->withType('application/json')
+                            ->withStatus(400)
+                            ->withStringBody(json_encode([
+                                'error' => true,
+                                'message' => $responseBody['message'] ?? 'Erro ao salvar endereço'
+                            ]));
+                    }
+                    else
+                    {
+                        $data['address'] = $responseBody['data'];
+                    }
+                } 
+                
+                $workdaysControllerGet = new WorkdaysController(
+                    (new ServerRequest())
+                    ->withParsedBody(['date' => $visitsOld->toArray()['date']]),
+                    new Response()
+                );
+
+                $responseWorkdays = $workdaysControllerGet->viewByDate();
+                $responseWorkdays->getBody()->rewind();
+                $responseWorkdaysOldData = json_decode($responseWorkdays->getBody()->getContents(), true);
+
+                if($visitsOld->toArray()['date'] !== $data['visits']['date'])
+                {
+                    $visitasCompletas =  $this->Visits->find()
+                    ->where(['date' => $visitsOld->toArray()['date']])
+                    ->where(['completed' => 1])
+                    ->contain([])
+                    ->toArray();
+
+                    $visitas =  $this->Visits->find()
+                    ->where(['date' => $visitsOld->toArray()['date']])
+                    ->contain([])
+                    ->toArray();
+
+                    $data['workdays']['id'] = $responseWorkdaysOldData['data'][0]['id'];
+                    $data['workdays']['date'] = $visitsOld->toArray()['date'];
+                    $data['workdays']['visits'] = sizeof($visitas)-1;
+                    $data['workdays']['completed'] = $visitsOld->toArray()['completed'] === 1 ? (sizeof($visitasCompletas) - 1) : sizeof($visitasCompletas);
+                    $data['workdays']['duration'] = ($responseWorkdaysOldData['data'][0]['duration'] - $visitsOld->toArray()['duration']);
+
+                    $workdaysControllerOldPut = new WorkdaysController(
+                        (new ServerRequest())
+                            ->withMethod('PUT')
+                            ->withParsedBody($data['workdays']),
+                        new Response()
+                    );
+                    
+                    $id = $data['workdays']['id'] ?? null;
+                    
+                    $responseWorkdaysOldPut = $workdaysControllerOldPut->edit($id);
+                }
+                
+                $data['visits']['duration'] = $this->getDuration($data['visits']['forms'], $data['visits']['products']);
+
+                if($data['visits']['duration'] > 480 )
+                {
+                    $connection->rollback();
+                    return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => "Limite de horas atingido"
+                    ])); 
+                }
+                
+                if(($data['visits']['duration'] + ($responseWorkdaysOldData['data'][0]['duration'] - $visitsOld->toArray()['duration']))  > 480 )
+                {
+                    $connection->rollback();
+                    return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => "Limite de horas atingido"
+                    ])); 
+                }
+
+                $visits = $this->Visits->patchEntity($visitsOld, $data['visits']);
                 if ($this->Visits->save($visits)) {
+
+                    $workdaysControllerGet = new WorkdaysController(
+                        (new ServerRequest())
+                        ->withParsedBody(['date' => $data['visits']['date']]),
+                        new Response()
+                    );
+                    
+                    $responseWorkdays = $workdaysControllerGet->viewByDate();
+                    $responseWorkdays->getBody()->rewind();
+                    $responseWorkdaysData = json_decode($responseWorkdays->getBody()->getContents(), true);
+                    
+                    if(sizeof($responseWorkdaysData['data']) === 0)
+                    {
+                        $data['workdays']['date'] = $data['visits']['date'];
+                        $data['workdays']['visits'] = 1;
+                        $data['workdays']['completed'] = $data['visits']['completed'] ?? 0;
+                        $data['workdays']['duration'] = $data['visits']['duration'];
+
+                        $workdaysControllerPost = new WorkdaysController(
+                            (new ServerRequest())
+                            ->withMethod('POST')
+                            ->withParsedBody($data['workdays']),
+                            new Response()
+                        );
+                        
+                        $responseWorkdaysPost = $workdaysControllerPost->add();
+                        
+                    }
+                    else
+                    {
+                        $visitasCompletas =  $this->Visits->find()
+                        ->where(['date' => $data['visits']['date']])
+                        ->where(['completed' => 1])
+                        ->contain([])
+                        ->toArray();
+
+                        $visitas =  $this->Visits->find()
+                        ->where(['date' => $data['visits']['date']])
+                        ->contain([])
+                        ->toArray();
+
+                        $data['workdays']['id'] = $responseWorkdaysData['data'][0]['id'];
+                        $data['workdays']['date'] = $data['visits']['date'];
+                        $data['workdays']['visits'] = sizeof($visitas);
+                        $data['workdays']['completed'] = sizeof($visitasCompletas);
+                        $data['workdays']['duration'] = ($data['visits']['duration'] + $responseWorkdaysData['data'][0]['duration']);
+
+                        if($data['workdays']['duration'] > 480)
+                        {
+                            $connection->rollback();
+                            return $this->response->withType('application/json')
+                            ->withStatus(400)
+                            ->withStringBody(json_encode([
+                                'error' => true,
+                                'message' => "Limite de horas atingido"
+                            ])); 
+                        }
+
+                        $workdaysControllerPut = new WorkdaysController(
+                            (new ServerRequest())
+                                ->withMethod('PUT')
+                                ->withParsedBody($data['workdays']),
+                            new Response()
+                        );
+                        
+                        $id = $data['workdays']['id'] ?? null;
+                        
+                        $responseWorkdaysPut = $workdaysControllerPut->edit($id);
+                    }
+                    
+                    $connection->commit();
                     return $this->response->withType('application/json')
                         ->withStatus(200)
                         ->withStringBody(json_encode([
                             'success' => true,
-                            'data' => $visits
+                            'data' => $data
                         ]));
                 } else {
+                    $connection->rollback();
                     return $this->response->withType('application/json')
                         ->withStatus(400)
                         ->withStringBody(json_encode([
@@ -409,6 +594,7 @@ class VisitsController extends AppController
     
             } catch (InvalidArgumentException $e) 
             {
+                $connection->rollback();
                 return $this->response->withType('application/json')
                     ->withStatus(400)
                     ->withStringBody(json_encode([
@@ -418,6 +604,7 @@ class VisitsController extends AppController
     
             } catch (\Exception $e) 
             {
+                $connection->rollback();
                 return $this->response->withType('application/json')
                     ->withStatus(500)
                     ->withStringBody(json_encode([
