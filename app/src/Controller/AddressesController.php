@@ -187,7 +187,7 @@ class AddressesController extends AppController
                         ->withStatus(201)
                         ->withStringBody(json_encode([
                             'success' => true,
-                            'data' => $data
+                            'data' => $entity
                         ]));
                 } else {
                     return $this->response->withType('application/json')

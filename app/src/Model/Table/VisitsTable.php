@@ -45,7 +45,14 @@ class VisitsTable extends Table
             'foreignKey' => 'foreign_id',
             'dependent' => true,
         ]);
-
+        
+        $this->hasOne('Workdays', [
+            'foreignKey' => false, 
+            'conditions' => [
+                'Workdays.date = Visits.date'
+            ],
+            'dependent' => true,
+        ]);
     }
 
     /**

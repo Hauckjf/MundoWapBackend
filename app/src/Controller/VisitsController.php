@@ -101,61 +101,63 @@ class VisitsController extends AppController
 
     public function viewByDate()
     {
-        try
+        if ($this->request->is('post')) 
         {
-
-            $data = $this->request->getData();
-            
-            if(isset($data['date']))
+            try
             {
-                $visits = $this->Visits->find()
-                    ->where(['date' => $date])
-                    ->contain(['Addresses'])
-                    ->toArray();
 
-                return $this->response->withType('application/json')
-                    ->withStatus(200)
+                $data = $this->request->getData();
+                if(isset($data['date']))
+                {
+                    $visits = $this->Visits->find()
+                        ->where(['date' => $data['date']])
+                        ->contain(['Addresses'])
+                        ->toArray();
+
+                    return $this->response->withType('application/json')
+                        ->withStatus(200)
+                        ->withStringBody(json_encode([
+                            'success' => true,
+                            'data' => $visits
+                        ]));
+                }
+                else
+                {
+                    return $this->response->withType('application/json')
+                    ->withStatus(400)
                     ->withStringBody(json_encode([
-                        'success' => true,
-                        'data' => $visits
+                        'error' => true,
+                        'message' => 'O campo date é obrigatório.'
+                    ]));
+                }
+            }
+            catch (RecordNotFoundException $e) 
+            {
+                return $this->response->withType('application/json')
+                    ->withStatus(404)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'Visita não encontrada.'
+                    ]));
+
+            } catch (InvalidArgumentException $e) 
+            {
+                return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => $e->getMessage()
+                    ]));
+
+            } catch (\Exception $e) 
+            {
+                return $this->response->withType('application/json')
+                    ->withStatus(500)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'Erro interno no servidor: ' . $e->getMessage()
                     ]));
             }
-            else
-            {
-                return $this->response->withType('application/json')
-                ->withStatus(400)
-                ->withStringBody(json_encode([
-                    'error' => true,
-                    'message' => 'O campo date é obrigatório.'
-                ]));
-            }
-        }
-        catch (RecordNotFoundException $e) 
-        {
-            return $this->response->withType('application/json')
-                ->withStatus(404)
-                ->withStringBody(json_encode([
-                    'error' => true,
-                    'message' => 'Visita não encontrada.'
-                ]));
-
-        } catch (InvalidArgumentException $e) 
-        {
-            return $this->response->withType('application/json')
-                ->withStatus(400)
-                ->withStringBody(json_encode([
-                    'error' => true,
-                    'message' => $e->getMessage()
-                ]));
-
-        } catch (\Exception $e) 
-        {
-            return $this->response->withType('application/json')
-                ->withStatus(500)
-                ->withStringBody(json_encode([
-                    'error' => true,
-                    'message' => 'Erro interno no servidor: ' . $e->getMessage()
-                ]));
         }
     }
 
@@ -389,12 +391,13 @@ class VisitsController extends AppController
                 }
 
                 $visitsOld = $this->Visits->get($id, [
-                    'contain' => ['Addresses'],
+                    'contain' => ['Addresses', 'Workdays'],
                 ]);
+
             
                 $data = $this->request->getData();
 
-                if(isset($data['address']['postal_code']) && isset($visitsOld->toArray()['address']) && $data['address']['postal_code'] !== $visitsOld->toArray()['address']['postal_code'])
+                if(isset($data['address']['postal_code']) && isset($visitsOld->toArray()['address']) && array_diff_assoc($data['address'], $visitsOld->toArray()['address']))
                 {
                     $addressesController = new AddressesController(
                         (new ServerRequest())->withMethod('DELETE'),
@@ -420,24 +423,20 @@ class VisitsController extends AppController
                             ->withStatus(400)
                             ->withStringBody(json_encode([
                                 'error' => true,
-                                'message' => $responseBody['message'] ?? 'Erro ao salvar endereço'
+                                'message' => $responseBody['message']
                             ]));
                     }
                     else
                     {
                         $data['address'] = $responseBody['data'];
                     }
-                } 
+                }
+                else
+                {
+                    $data['address'] = $visitsOld->toArray()['address'];
+                }
                 
-                $workdaysControllerGet = new WorkdaysController(
-                    (new ServerRequest())
-                    ->withParsedBody(['date' => $visitsOld->toArray()['date']]),
-                    new Response()
-                );
-
-                $responseWorkdays = $workdaysControllerGet->viewByDate();
-                $responseWorkdays->getBody()->rewind();
-                $responseWorkdaysOldData = json_decode($responseWorkdays->getBody()->getContents(), true);
+                $responseWorkdaysOldData = $visitsOld->toArray()['workday'];
 
                 if($visitsOld->toArray()['date'] !== $data['visits']['date'])
                 {
@@ -445,18 +444,18 @@ class VisitsController extends AppController
                     ->where(['date' => $visitsOld->toArray()['date']])
                     ->where(['completed' => 1])
                     ->contain([])
-                    ->toArray();
+                    ->count();
 
                     $visitas =  $this->Visits->find()
                     ->where(['date' => $visitsOld->toArray()['date']])
                     ->contain([])
-                    ->toArray();
+                    ->count();
 
-                    $data['workdays']['id'] = $responseWorkdaysOldData['data'][0]['id'];
+                    $data['workdays']['id'] = $responseWorkdaysOldData['id'];
                     $data['workdays']['date'] = $visitsOld->toArray()['date'];
-                    $data['workdays']['visits'] = sizeof($visitas)-1;
-                    $data['workdays']['completed'] = $visitsOld->toArray()['completed'] === 1 ? (sizeof($visitasCompletas) - 1) : sizeof($visitasCompletas);
-                    $data['workdays']['duration'] = ($responseWorkdaysOldData['data'][0]['duration'] - $visitsOld->toArray()['duration']);
+                    $data['workdays']['visits'] = $visitas-1;
+                    $data['workdays']['completed'] = $visitsOld->toArray()['completed'] === 1 ? ($visitasCompletas - 1) : $visitasCompletas;
+                    $data['workdays']['duration'] = ($responseWorkdaysOldData['duration'] - $visitsOld->toArray()['duration']);
 
                     $workdaysControllerOldPut = new WorkdaysController(
                         (new ServerRequest())
@@ -483,7 +482,7 @@ class VisitsController extends AppController
                     ])); 
                 }
                 
-                if(($data['visits']['duration'] + ($responseWorkdaysOldData['data'][0]['duration'] - $visitsOld->toArray()['duration']))  > 480 )
+                if(($data['visits']['duration'] + ($responseWorkdaysOldData['duration'] - $visitsOld->toArray()['duration']))  > 480 )
                 {
                     $connection->rollback();
                     return $this->response->withType('application/json')
@@ -530,17 +529,17 @@ class VisitsController extends AppController
                         ->where(['date' => $data['visits']['date']])
                         ->where(['completed' => 1])
                         ->contain([])
-                        ->toArray();
+                        ->count();
 
                         $visitas =  $this->Visits->find()
                         ->where(['date' => $data['visits']['date']])
                         ->contain([])
-                        ->toArray();
+                        ->count();
 
                         $data['workdays']['id'] = $responseWorkdaysData['data'][0]['id'];
                         $data['workdays']['date'] = $data['visits']['date'];
-                        $data['workdays']['visits'] = sizeof($visitas);
-                        $data['workdays']['completed'] = sizeof($visitasCompletas);
+                        $data['workdays']['visits'] = $visitas;
+                        $data['workdays']['completed'] = $visitasCompletas;
                         $data['workdays']['duration'] = ($data['visits']['duration'] + $responseWorkdaysData['data'][0]['duration']);
 
                         if($data['workdays']['duration'] > 480)

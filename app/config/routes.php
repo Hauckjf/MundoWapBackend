@@ -82,7 +82,7 @@ return static function (RouteBuilder $routes) {
          
          $builder->post('/visits', ['controller' => 'Visits', 'action' => 'add']); // ok
          $builder->put('/visits/{id}', ['controller' => 'Visits', 'action' => 'edit'])->setPass(['id']); //ok
-         $builder->get('/visits/date', ['controller' => 'Visits', 'action' => 'viewByDate']); //ok
+         $builder->post('/visits/date', ['controller' => 'Visits', 'action' => 'viewByDate']); //ok
          $builder->get('/workdays', ['controller' => 'Workdays', 'action' => 'index']); //ok
          $builder->post('/workdays/close', ['controller' => 'Workdays', 'action' => 'close']); 
 
