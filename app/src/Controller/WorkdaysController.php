@@ -3,6 +3,11 @@ declare(strict_types=1);
 
 namespace App\Controller;
 
+use Cake\Http\ServerRequest;
+use Cake\Http\Response;
+use Cake\Datasource\ConnectionManager;
+use Cake\I18n\Date;
+
 /**
  * Workdays Controller
  *
@@ -64,62 +69,6 @@ class WorkdaysController extends AppController
                     ]));
                 }
             }
-        }
-        catch (RecordNotFoundException $e) 
-        {
-            return $this->response->withType('application/json')
-                ->withStatus(404)
-                ->withStringBody(json_encode([
-                    'error' => true,
-                    'message' => 'Dia útil não encontrado.'
-                ]));
-
-        } catch (InvalidArgumentException $e) 
-        {
-            return $this->response->withType('application/json')
-                ->withStatus(400)
-                ->withStringBody(json_encode([
-                    'error' => true,
-                    'message' => $e->getMessage()
-                ]));
-
-        } catch (\Exception $e) 
-        {
-            return $this->response->withType('application/json')
-                ->withStatus(500)
-                ->withStringBody(json_encode([
-                    'error' => true,
-                    'message' => 'Erro interno no servidor: ' . $e->getMessage()
-                ]));
-        }
-    }
-
-    public function close()
-    {
-        try
-        {
-
-            $data = $this->request->getData();
-
-            if(isset($data['date']))
-            {
-                $workdays = $this->Workdays->find()
-                    ->where(['date' => $data['date']])
-                    ->contain([])
-                    ->toArray();
-
-                return $this->response->withType('application/json')
-                    ->withStatus(200)
-                    ->withStringBody(json_encode([
-                        'success' => true,
-                        'data' => $workdays
-                    ]));
-            }
-            else
-            {
-
-            }
-            
         }
         catch (RecordNotFoundException $e) 
         {
@@ -283,13 +232,13 @@ class WorkdaysController extends AppController
         
             try {
 
-                $addressOld = $this->Workdays->get($id, [
+                $workdayOld = $this->Workdays->get($id, [
                     'contain' => [],
                 ]);
             
                 $data = $this->request->getData();
             
-                $workdays = $this->Workdays->patchEntity($addressOld, $data);
+                $workdays = $this->Workdays->patchEntity($workdayOld, $data);
         
                 if ($this->Workdays->save($workdays)) {
                     return $this->response->withType('application/json')
@@ -403,4 +352,120 @@ class WorkdaysController extends AppController
             }
         }
     }
+
+    public function close()
+    {
+        try
+        {
+
+            $data = $this->request->getData();
+
+
+            $step = 1;
+
+            if(isset($data['date']))
+            {
+                $visitsController = new VisitsController(
+                    (new ServerRequest())
+                    ->withMethod('POST')
+                    ->withParsedBody(['date' => $data['date']]),
+                    new Response()
+                );
+                
+                $responseVisits = $visitsController->viewByDate();
+                
+                $responseVisits->getBody()->rewind();
+                $responseData = json_decode($responseVisits->getBody()->getContents(), true);
+
+                foreach($responseData['data'] as $visits)
+                {
+                    if(!$visits['completed'])
+                    {
+                        $newDate = new Date($visits['date']);
+                        
+                        $newDate = $newDate->addDay($step);
+
+                        $body['visits'] = $visits;
+                        $body['visits']['date'] = $newDate->format('Y-m-d');
+                        $visitsController = new VisitsController(
+                            (new ServerRequest())
+                            ->withMethod('PUT')
+                            ->withParsedBody($body),
+                            new Response()
+                        );
+
+                        $responseVisits = $visitsController->edit($visits['id']); 
+                        $responseVisits->getBody()->rewind();
+                        $responseEdit = json_decode($responseVisits->getBody()->getContents(), true);
+                        while(isset($responseEdit['message']) && $responseEdit['message'] === 'Limite de horas atingido')
+                        {
+                            $step++;
+                            $newDate = new Date($visits['date']);
+                        
+                            $newDate = $newDate->addDay($step);
+    
+                            $body['visits'] = $visits;
+                            $body['visits']['date'] = $newDate->format('Y-m-d');
+                            $visitsController = new VisitsController(
+                                (new ServerRequest())
+                                ->withMethod('PUT')
+                                ->withParsedBody($body),
+                                new Response()
+                            );
+
+                            $responseVisits = $visitsController->edit($visits['id']); 
+                            $responseVisits->getBody()->rewind();
+                            $responseEdit = json_decode($responseVisits->getBody()->getContents(), true);
+                        }
+                        $return[$visits['id']] = $responseEdit;
+                    }
+                }
+
+                return $this->response->withType('application/json')
+                    ->withStatus(200)
+                    ->withStringBody(json_encode([
+                        'success' => true,
+                        'data' => $return
+                    ]));
+            }
+            else
+            {
+                return $this->response->withType('application/json')
+                ->withStatus(400)
+                ->withStringBody(json_encode([
+                    'error' => true,
+                    'message' => 'O campo date é obrigatório.'
+                ]));
+            }
+
+        }
+        catch (RecordNotFoundException $e) 
+        {
+            return $this->response->withType('application/json')
+                ->withStatus(404)
+                ->withStringBody(json_encode([
+                    'error' => true,
+                    'message' => 'Dia útil não encontrado.'
+                ]));
+
+        } catch (InvalidArgumentException $e) 
+        {
+            return $this->response->withType('application/json')
+                ->withStatus(400)
+                ->withStringBody(json_encode([
+                    'error' => true,
+                    'message' => $e->getMessage()
+                ]));
+
+        } catch (\Exception $e) 
+        {
+            return $this->response->withType('application/json')
+                ->withStatus(500)
+                ->withStringBody(json_encode([
+                    'error' => true,
+                    'message' => 'Erro interno no servidor: ' . $e->getMessage()
+                ]));
+        }
+    }
+
 }

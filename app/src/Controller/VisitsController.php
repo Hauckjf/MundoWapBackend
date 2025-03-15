@@ -259,17 +259,17 @@ class VisitsController extends AppController
                         ->where(['date' => $data['visits']['date']])
                         ->where(['completed' => 1])
                         ->contain([])
-                        ->toArray();
+                        ->count();
 
                         $visitas =  $this->Visits->find()
                         ->where(['date' => $data['visits']['date']])
                         ->contain([])
-                        ->toArray();
+                        ->count();
 
                         $data['workdays']['id'] = $responseWorkdaysData['data'][0]['id'];
                         $data['workdays']['date'] = $data['visits']['date'];
-                        $data['workdays']['visits'] = sizeof($visitas);
-                        $data['workdays']['completed'] = sizeof($visitasCompletas);
+                        $data['workdays']['visits'] = $visitas;
+                        $data['workdays']['completed'] = $visitasCompletas;
                         $data['workdays']['duration'] = ($data['visits']['duration'] + $responseWorkdaysData['data'][0]['duration']);
 
 
@@ -379,6 +379,7 @@ class VisitsController extends AppController
 
             try 
             {
+                $data = $this->request->getData();
 
                 if (!$id) {
                     $connection->rollback();
@@ -393,11 +394,8 @@ class VisitsController extends AppController
                 $visitsOld = $this->Visits->get($id, [
                     'contain' => ['Addresses', 'Workdays'],
                 ]);
-
             
-                $data = $this->request->getData();
-
-                if(isset($data['address']['postal_code']) && isset($visitsOld->toArray()['address']) && array_diff_assoc($data['address'], $visitsOld->toArray()['address']))
+                if(isset($data['address']) && isset($visitsOld->toArray()['address']) && array_diff_assoc($data['address'], $visitsOld->toArray()['address']))
                 {
                     $addressesController = new AddressesController(
                         (new ServerRequest())->withMethod('DELETE'),
@@ -541,7 +539,7 @@ class VisitsController extends AppController
                         $data['workdays']['visits'] = $visitas;
                         $data['workdays']['completed'] = $visitasCompletas;
                         $data['workdays']['duration'] = ($data['visits']['duration'] + $responseWorkdaysData['data'][0]['duration']);
-
+                      
                         if($data['workdays']['duration'] > 480)
                         {
                             $connection->rollback();
