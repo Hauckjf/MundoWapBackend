@@ -12,6 +12,21 @@ services:
       - backend
     volumes:
       - mysql-db:/var/lib/mysql
+  db_test:
+    container_name: mysql_test
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: test_database
+    ports:
+      - "3307:3306"
+    networks:
+      - backend
+    tmpfs: /var/lib/mysql
+    command: --default-authentication-plugin=mysql_native_password --max-connect-errors=1000 --connect-timeout=60
+    restart: always
+    depends_on:
+      - db
   app:
     image: fmgusmao/php8-nginx
     container_name: mundowap-test-cakephp-app

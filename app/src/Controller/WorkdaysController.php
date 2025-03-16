@@ -6,7 +6,7 @@ namespace App\Controller;
 use Cake\Http\ServerRequest;
 use Cake\Http\Response;
 use Cake\Datasource\ConnectionManager;
-use Cake\I18n\Date;
+use Cake\I18n\FrozenDate;
 
 /**
  * Workdays Controller
@@ -242,7 +242,7 @@ class WorkdaysController extends AppController
         
                 if ($this->Workdays->save($workdays)) {
                     return $this->response->withType('application/json')
-                        ->withStatus(200)
+                        ->withStatus(201)
                         ->withStringBody(json_encode([
                             'success' => true,
                             'data' => $workdays
@@ -360,7 +360,6 @@ class WorkdaysController extends AppController
 
             $data = $this->request->getData();
 
-
             $step = 1;
 
             if(isset($data['date']))
@@ -377,13 +376,23 @@ class WorkdaysController extends AppController
                 $responseVisits->getBody()->rewind();
                 $responseData = json_decode($responseVisits->getBody()->getContents(), true);
 
+                if(isset($responseData['error']) && $responseData['error'])
+                {
+                    return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => $responseData['message']
+                    ]));
+                }
+
                 foreach($responseData['data'] as $visits)
                 {
                     if(!$visits['completed'])
                     {
-                        $newDate = new Date($visits['date']);
+                        $newDate = new FrozenDate($visits['date']);
                         
-                        $newDate = $newDate->addDay($step);
+                        $newDate = $newDate->addDays($step);
 
                         $body['visits'] = $visits;
                         $body['visits']['date'] = $newDate->format('Y-m-d');
@@ -400,9 +409,9 @@ class WorkdaysController extends AppController
                         while(isset($responseEdit['message']) && $responseEdit['message'] === 'Limite de horas atingido')
                         {
                             $step++;
-                            $newDate = new Date($visits['date']);
+                            $newDate = new FrozenDate($visits['date']);
                         
-                            $newDate = $newDate->addDay($step);
+                            $newDate = $newDate->addDays($step);
     
                             $body['visits'] = $visits;
                             $body['visits']['date'] = $newDate->format('Y-m-d');
@@ -419,10 +428,19 @@ class WorkdaysController extends AppController
                         }
                         $return[$visits['id']] = $responseEdit;
                     }
+                    else
+                    {
+                        return $this->response->withType('application/json')
+                        ->withStatus(400)
+                        ->withStringBody(json_encode([
+                            'error' => true,
+                            'message' => 'Apenas possui visitas completadas para essa data.'
+                        ]));
+                    }
                 }
 
                 return $this->response->withType('application/json')
-                    ->withStatus(200)
+                    ->withStatus(201)
                     ->withStringBody(json_encode([
                         'success' => true,
                         'data' => $return

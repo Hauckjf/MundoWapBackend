@@ -24,6 +24,7 @@ use Cake\Routing\Middleware\AssetMiddleware;
 use Cake\Routing\Middleware\RoutingMiddleware;
 use Cake\TestSuite\IntegrationTestTrait;
 use Cake\TestSuite\TestCase;
+use Cake\Http\Middleware\CsrfProtectionMiddleware;
 use InvalidArgumentException;
 
 /**
@@ -91,16 +92,24 @@ class ApplicationTest extends TestCase
      * @return void
      */
     public function testMiddleware()
-    {
-        $app = new Application(dirname(dirname(__DIR__)) . '/config');
-        $middleware = new MiddlewareQueue();
+{
+    $app = new Application(dirname(dirname(__DIR__)) . '/config');
+    $middleware = new MiddlewareQueue();
 
-        $middleware = $app->middleware($middleware);
+    $middleware = $app->middleware($middleware);
 
-        $this->assertInstanceOf(ErrorHandlerMiddleware::class, $middleware->current());
-        $middleware->seek(1);
-        $this->assertInstanceOf(AssetMiddleware::class, $middleware->current());
-        $middleware->seek(2);
-        $this->assertInstanceOf(RoutingMiddleware::class, $middleware->current());
-    }
+    $this->assertInstanceOf(\Cake\Error\Middleware\ErrorHandlerMiddleware::class, $middleware->current());
+
+    $middleware->seek(1);
+    $this->assertInstanceOf(\Cake\Routing\Middleware\AssetMiddleware::class, $middleware->current());
+
+    $middleware->seek(2);
+    $this->assertInstanceOf(\Cake\Http\Middleware\CsrfProtectionMiddleware::class, $middleware->current());
+
+    $middleware->seek(3);
+    $this->assertInstanceOf(\Cake\Http\Middleware\BodyParserMiddleware::class, $middleware->current());
+
+    $middleware->seek(4);
+    $this->assertInstanceOf(\Cake\Routing\Middleware\RoutingMiddleware::class, $middleware->current());
+}
 }

@@ -19,7 +19,6 @@ class WorkdaysFixture extends TestFixture
     {
         $this->records = [
             [
-                'id' => 1,
                 'date' => '2025-03-12',
                 'visits' => 1,
                 'completed' => 1,

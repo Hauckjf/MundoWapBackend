@@ -25,58 +25,50 @@ class AddressesControllerTest extends TestCase
         'app.Addresses',
     ];
 
-    /**
-     * Test index method
-     *
-     * @return void
-     * @uses \App\Controller\AddressesController::index()
-     */
-    public function testIndex(): void
+    public function testEditVisitAndCreateNewAddress(): void
     {
-        $this->markTestIncomplete('Not implemented yet.');
+        $data1 = [
+            'visits' => [
+                'date' => '2025-03-21',
+                'forms' => 1,
+                'products' => 1
+            ],
+            'address' => [
+                'postal_code' => '01311300',
+                'sublocality' => 'Bela Vista',
+                'street' => 'Avenida Paulista',
+                'street_number' => '1500'
+            ]
+        ];
+
+
+        $this->post('/api/visits', $data1);
+        $this->assertResponseCode(201);
+
+        $responsePost = json_decode((string)$this->_response->getBody(), true)['data'];
+        
+        $this->assertEquals(20, $responsePost['visits']['duration']);
+        $visitId = $responsePost['visits']['id'];
+        $editData = [
+            'visits' => [
+                'date' => '2025-03-22',
+                'completed' => 1,
+                'forms' => 1,
+                'products' => 1
+            ],
+            'address' => [
+                'postal_code' => '01311300',
+                'street_number' => '1501'
+            ]
+        ];
+
+        $this->put("/api/visits/{$visitId}", $editData);
+        $this->assertResponseCode(201);
+        $responseEdit = json_decode((string)$this->_response->getBody(), true);
+        
+        $this->assertNotEquals($responsePost['address']['id'], $responseEdit['data']['address']['id']);
+        $this->assertEquals(20, $responseEdit['data']['workdays']['duration']);
     }
 
-    /**
-     * Test view method
-     *
-     * @return void
-     * @uses \App\Controller\AddressesController::view()
-     */
-    public function testView(): void
-    {
-        $this->markTestIncomplete('Not implemented yet.');
-    }
 
-    /**
-     * Test add method
-     *
-     * @return void
-     * @uses \App\Controller\AddressesController::add()
-     */
-    public function testAdd(): void
-    {
-        $this->markTestIncomplete('Not implemented yet.');
-    }
-
-    /**
-     * Test edit method
-     *
-     * @return void
-     * @uses \App\Controller\AddressesController::edit()
-     */
-    public function testEdit(): void
-    {
-        $this->markTestIncomplete('Not implemented yet.');
-    }
-
-    /**
-     * Test delete method
-     *
-     * @return void
-     * @uses \App\Controller\AddressesController::delete()
-     */
-    public function testDelete(): void
-    {
-        $this->markTestIncomplete('Not implemented yet.');
-    }
 }

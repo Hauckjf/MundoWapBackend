@@ -19,7 +19,6 @@ class VisitsFixture extends TestFixture
     {
         $this->records = [
             [
-                'id' => 1,
                 'date' => '2025-03-12',
                 'completed' => 1,
                 'forms' => 1,

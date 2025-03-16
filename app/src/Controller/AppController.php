@@ -53,6 +53,8 @@ class AppController extends Controller
     
     public function getDuration($forms, $products)
     {
+        $forms = (int) $forms;
+        $products = (int) $products;
         return ($forms * 15) + ($products * 5);
     }
 

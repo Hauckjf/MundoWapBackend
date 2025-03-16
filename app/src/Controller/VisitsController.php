@@ -17,7 +17,6 @@ use Cake\Datasource\ConnectionManager;
 class VisitsController extends AppController
 {
 
-
    /**
      * Index method
      *
@@ -107,12 +106,23 @@ class VisitsController extends AppController
             {
 
                 $data = $this->request->getData();
+                
                 if(isset($data['date']))
                 {
                     $visits = $this->Visits->find()
                         ->where(['date' => $data['date']])
                         ->contain(['Addresses'])
                         ->toArray();
+
+                    if(sizeof($visits) === 0)
+                    {
+                        return $this->response->withType('application/json')
+                        ->withStatus(404)
+                        ->withStringBody(json_encode([
+                            'error' => true,
+                            'message' => 'Nenhum visita cadastrada para a data.'
+                        ]));
+                    }
 
                     return $this->response->withType('application/json')
                         ->withStatus(200)
@@ -179,27 +189,67 @@ class VisitsController extends AppController
                 $visitsEntity = $this->Visits->newEmptyEntity();
                 $data = $this->request->getData();
 
-                if(!isset($data['visits']['date']) || !isset($data['visits']['forms']) || !isset($data['visits']['products']) || !isset($data['address']))
+                if(!isset($data['address']) || !isset($data['visits']) )
                 {
                     $connection->rollback();
                     return $this->response->withType('application/json')
                     ->withStatus(400)
                     ->withStringBody(json_encode([
                         'error' => true,
-                        'message' => 'Os campos "date", "forms", "products" e "address" são obrigatórios.'
+                        'message' => 'Os campos "visits" e "address" são obrigatórios.'
                     ]));
                 }
-                elseif(empty($data['visits']['date']) || empty($data['visits']['forms']) || empty($data['visits']['products']) || empty($data['address']))
+                elseif(!isset($data['visits']))
                 {
                     $connection->rollback();
                     return $this->response->withType('application/json')
                     ->withStatus(400)
                     ->withStringBody(json_encode([
                         'error' => true,
-                        'message' => 'Os campos "date", "forms", "products" e "address" não podem estar vazios.'
+                        'message' => 'O campo "visits" é obrigatório.'
                     ]));
                 }
-
+                elseif(!isset($data['address']))
+                {
+                    $connection->rollback();
+                    return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'O campo "address" é obrigatório.'
+                    ]));
+                }
+                elseif(!isset($data['visits']['date']) || !isset($data['visits']['forms']) || !isset($data['visits']['products']))
+                {
+                    $connection->rollback();
+                    return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'Os campos "date", "forms" e "products" do "address" são obrigatórios.'
+                    ]));
+                }
+                elseif((isset($data['visits']['completed']) && $data['visits']['completed'] !== 0 && $data['visits']['completed'] !== 1))
+                {
+                    $connection->rollback();
+                    return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'O campo "completed" poderá ser preenchido apenas com 1(true) e 0(false).'
+                    ]));
+                }
+                elseif(!isset($data['address']['postal_code']) || empty($data['address']['postal_code']) )
+                {
+                    $connection->rollback();
+                    return $this->response->withType('application/json')
+                    ->withStatus(400)
+                    ->withStringBody(json_encode([
+                        'error' => true,
+                        'message' => 'O campo "postal_code" do "address" é obrigatório.'
+                    ]));
+                }
+                
                 $data['visits']['duration'] = $this->getDuration($data['visits']['forms'], $data['visits']['products']);
 
                 if($data['visits']['duration'] > 480)
@@ -317,7 +367,7 @@ class VisitsController extends AppController
 
                         $connection->commit();
                         return $this->response->withType('application/json')
-                        ->withStatus(200)
+                        ->withStatus(201)
                         ->withStringBody(json_encode([
                             'success' => true,
                             'data' => $data
@@ -469,6 +519,7 @@ class VisitsController extends AppController
                 
                 $data['visits']['duration'] = $this->getDuration($data['visits']['forms'], $data['visits']['products']);
 
+                
                 if($data['visits']['duration'] > 480 )
                 {
                     $connection->rollback();
@@ -479,8 +530,7 @@ class VisitsController extends AppController
                         'message' => "Limite de horas atingido"
                     ])); 
                 }
-                
-                if(($data['visits']['duration'] + ($responseWorkdaysOldData['duration'] - $visitsOld->toArray()['duration']))  > 480 )
+                if(($visitsOld->toArray()['duration'] - $responseWorkdaysOldData['duration'] ) + $data['visits']['duration'] > 480)
                 {
                     $connection->rollback();
                     return $this->response->withType('application/json')
@@ -565,7 +615,7 @@ class VisitsController extends AppController
                     
                     $connection->commit();
                     return $this->response->withType('application/json')
-                        ->withStatus(200)
+                        ->withStatus(201)
                         ->withStringBody(json_encode([
                             'success' => true,
                             'data' => $data
